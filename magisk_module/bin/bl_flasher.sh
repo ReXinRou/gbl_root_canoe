@@ -33,11 +33,6 @@ if [ "$LANG" = "zh" ]; then
   TEXT_GBL_VULN_SKIP="已跳过BL刷写"
   TEXT_GBL_DETECT_FAILED="漏洞检测失败，继续流程"
   TEXT_NO_GBL_VULN="未检测到GBL漏洞"
-  TEXT_INJECT_SFB="注入 superfastboot..."
-  TEXT_NO_LOADER_ELF="loader.elf 不存在"
-  TEXT_INJECT_FAILED="注入失败"
-  TEXT_GENFW_FAILED="转换失败"
-  TEXT_INJECT_OK="注入完成"
   TEXT_EFISP_WARN="efisp 刷写失败，继续刷入BL"
   TEXT_SET_RW_FAILED="分区设置可写失败"
   TEXT_FLASH_PART="刷写"
@@ -64,11 +59,6 @@ else
   TEXT_GBL_VULN_SKIP="Skipped BL flash"
   TEXT_GBL_DETECT_FAILED="Vuln check failed"
   TEXT_NO_GBL_VULN="No GBL vuln found"
-  TEXT_INJECT_SFB="Injecting superfastboot"
-  TEXT_NO_LOADER_ELF="loader.elf missing"
-  TEXT_INJECT_FAILED="Inject failed"
-  TEXT_GENFW_FAILED="Convert failed"
-  TEXT_INJECT_OK="Injected"
   TEXT_EFISP_WARN="efisp failed, continue BL"
   TEXT_SET_RW_FAILED="setrw failed"
   TEXT_FLASH_PART="Flashing"
@@ -141,22 +131,13 @@ current_pid() {
 }
 
 patch_efisp() {
-  is_sfb=$2
-  is_debug=$3
+  is_debug=$2
   rm -f $RUNTIME_DIR/*
   $MODDIR/bin/extractfv -o $RUNTIME_DIR -v "$1" >> "$LOG_FILE" 2>&1
   $MODDIR/bin/patch_abl $RUNTIME_DIR/LinuxLoader.efi $RUNTIME_DIR/patched.efi >> $RUNTIME_DIR/patch.log 2>&1
   cat $RUNTIME_DIR/patch.log >> "$LOG_FILE"
   [ -f $RUNTIME_DIR/patched.efi ] || { write_log "$TEXT_PATCH_FAILED"; return 1; }
 
-  if [ "$is_sfb" = "with-superfastboot" ]; then
-    write_log "$TEXT_INJECT_SFB"
-    [ -f "$MODDIR/loader.elf" ] || { write_log "$TEXT_NO_LOADER_ELF"; return 1; }
-    $MODDIR/bin/elf_inject "$MODDIR/loader.elf" $RUNTIME_DIR/patched.efi $RUNTIME_DIR/injected.dll >> "$LOG_FILE" 2>&1
-    [ -f $RUNTIME_DIR/injected.dll ] || { write_log "$TEXT_INJECT_FAILED"; return 1; }
-    $MODDIR/bin/GenFw -e UEFI_APPLICATION -o $RUNTIME_DIR/patched.efi $RUNTIME_DIR/injected.dll >> "$LOG_FILE" 2>&1
-    write_log "$TEXT_INJECT_OK"
-  fi
 
   if [ "$is_debug" = "debug" ]; then
     write_log "$TEXT_DEBUG_MODE"
@@ -220,20 +201,10 @@ USER_LANG=$LANG"
 
 run_flash() {
   mode=$1
-  sfb=no
   debug=no
-  if [ "$mode" = "update-efisp-with-superfastboot" ]; then
-    mode=update-efisp
-    sfb=with-superfastboot
-  fi
   if [ "$mode" = "debug" ]; then
     debug=yes
     mode=skip-efisp
-  fi
-  if [ "$mode" = "debug-with-superfastboot" ]; then
-    debug=yes
-    mode=update-efisp
-    sfb=with-superfastboot
   fi
 
   ensure_runtime
@@ -251,7 +222,7 @@ run_flash() {
   if [ "$debug" = "yes" ]; then
     abl=$(partition_path abl "$target_slot")
     if [ "$mode" = "update-efisp" ]; then
-      patch_efisp "$abl" $sfb yes
+      patch_efisp "$abl" yes
       if [ $? -eq 0 ]; then
         write_state success "$TEXT_DEBUG_DONE"
       else
@@ -271,7 +242,7 @@ run_flash() {
   efisp_fail=0
   abl=$(partition_path abl "$target_slot")
   if [ "$mode" = "update-efisp" ]; then
-    patch_efisp "$abl" $sfb no
+    patch_efisp "$abl" no
     res=$?
     if [ $res -eq 1 ]; then
       efisp_fail=1

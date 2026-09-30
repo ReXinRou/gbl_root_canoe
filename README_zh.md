@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-`gbl_root_canoe` 是一个基于 EDK2 的工作区，主要用于修补高通 ABL 内的efi程序。该项目利用 GBL (Generic Bootloader Loader) 漏洞注入自定义efi，其主要目的是在骁龙 8 Gen 5 / 8 Elite (Gen 5) 设备上实现**假回锁**（绕过 Bootloader 的解锁状态检测）。修补后的efi通常会被直接注入并刷入手机的 `efisp` 分区中。
+`gbl_root_canoe` 是一个基于 EDK2 的工作区，主要用于修补高通 ABL 内的efi程序。该项目利用 GBL (Generic Bootloader Loader) 漏洞修补内置efi，其主要目的是在骁龙 8 Gen 5 / 8 Elite (Gen 5) 设备上实现**假回锁**（绕过 Bootloader 的解锁状态检测）。修补后的efi通常会被直接刷入手机的 `efisp` 分区中。
 
 ---
 
@@ -23,22 +23,18 @@
 你可以在执行 `make` 时传入 `DIST_NAME` 环境变量来指定输出压缩包的名字（例如：`DIST_NAME=my_toolkit make dist_loader`）。
 
 - **`make dist_loader`**
-  编译 EDK2 原生载荷 (`loader.elf`)，并将必要的修补工具（如 `extractfv`, `patch_abl`, `elf_inject` 等）编译为 Linux 原生程序，最后打包输出到 `release/` 目录的 `.zip` 文件中。
+  将必要的修补工具（如 `extractfv`, `patch_abl`）编译为 Linux 原生程序，最后打包输出到 `release/` 目录的 `.zip` 文件中。
 
 - **`make dist_loader_windows`**
   逻辑与 `dist_loader` 相同，但使用 MinGW-w64 将修补工具交叉编译为 Windows 原生的 `.exe` 格式文件。
 
 - **`make build_module`**
-  使用 NDK 将修补工具交叉编译至 Android 原生平台架构，并构建 EDK2 载荷。这些组件将被封装为一个标准的 Magisk 模块（zip 刷入包，输出在 `release/` 文件夹）。
+  使用 NDK 将修补工具交叉编译至 Android 原生平台架构。这些组件将被封装为一个标准的 Magisk 模块（zip 刷入包，输出在 `release/` 文件夹）。
 
 - **`make dist`**
-  构建特定机型的预补丁efi。
+  构建特定机型的补丁efi。
 
-- **`make build_superfbonly`**
-  只构建superfastboot，并且在原因的启动内嵌efi位置改为直接交还控制权给abl（调试用，无假回锁效果）
 
-- **`make build_generic`**
-  内嵌补丁工具，多机型通用，但是高版本兼容不佳，逐步弃用。
 
 ---
 
@@ -66,34 +62,14 @@ Magisk 版本可直接通过 Root 管理器在有 Root 权限的手机上刷入�
 1. 请先解压该 zip 并进入套件文件夹。
 2. 提取出你所用机型的官方 `abl.img`，并将其直接拷贝至套件中的 `images/`（或 `images\`）目录下。
 3. **Linux平台：** 开启终端执行 `bash build.sh` (或输入 `make build`)。 **Windows平台：** 双击运行 `build.bat`。
-4. 等待脚本自动为你提取固件、打补丁及注入自定义载荷。结束后提取同目录下的 `ABL_with_superfastboot.efi` 文件即为修补完的系统文件。（注意查看反馈日志，若显示 "Warning: Failed to patch ABL GBL" 则说明你的设备没有该 GBL 漏洞，需要降级abl）。
+4. 等待脚本自动为你提取固件、打补丁及修补 ABL。结束后提取同目录下的 `ABL.efi` 文件即为修补完的系统文件。（注意查看反馈日志，若显示 "Warning: Failed to patch ABL GBL" 则说明你的设备没有该 GBL 漏洞，需要降级abl）。
 
 ### 3. 使用预先补丁efi
-下载包含文件名中含有手机型号或代号的特定发布版本。使用其中的 `ABL_with_superfastboot.efi` 或 `ABL.efi` 通过 `fastboot` 命令进行引导或刷写 (比如 `fastboot flash efisp ABL_with_superfastboot.efi`)。强烈建议使用带有 `superfastboot` 的版本以保留备用的线刷能力。
+下载包含文件名中含有手机型号或代号的特定发布版本。使用其中的 `ABL.efi` 通过 `fastboot` 命令进行引导或刷写 (比如 `fastboot flash efisp ABL.efi`)。
 
-### 4. 使用generic efi（弃用）
-下载 `generic_superfastboot.efi`，然后通过相关的刷写流程进行操作。由于兼容性问题和各原厂设备特性的不稳定性，它可能在某些机身和版本上表现不佳，**不再推荐使用**。
-
-### 5. OTA升级
+### 4. OTA升级
 使用模块在重启前刷写保留旧版本abl，如果跨版本更新，建议勾选“更新efisp”，否则卡一屏。
 
-### 6. superfastboot使用方法
-开启 OEM 解锁且开机出现小白字时，必须按 **音量减**（Volume Down）键才能进入 Superfastboot 模式。常用命令包括：
-- **临时启动EFI文件（无需刷入）**：`fastboot boot xxx.efi`
-- **锁定与解锁 (BL 锁相关)**：
-  - 锁定 BL，触发数据清除：`fastboot flashing lock`
-  - 解锁 BL，不触发数据清除：`fastboot flashing unlock` 或 `fastboot flashing unlock_critical`
-  - 注意：如果遇到 TEE 状态不一致的情况，设备会拒绝下发 data key 导致数据无法访问。
-- **刷写与擦除**：
-  - `fastboot flash <partition> <file.img>`
-  - `fastboot erase <partition>`
-- **重启设备**：
-  - `fastboot reboot bootloader` （下一次正常启动进入官方 Fastboot）
-  - `fastboot reboot recovery`
-  - `fastboot reboot`
-
-### 7. 不同变体说明
+### 5. 不同变体说明
 1. `ABL.efi`:修补后的abl
 2. `ABL_orignal`:开发者IDA分析用，用于故障反馈，**不能刷入**
-3. `ABL_with_superfastboot.efi`:修补后并加入superfastboot的abl
-4. `loader.elf`:superfastboot二进制文件，未链接为efi的elf二进制，供链接toolbox使用，不能直接刷入

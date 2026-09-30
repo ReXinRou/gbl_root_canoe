@@ -2,7 +2,7 @@
 
 [中文版](README_zh.md)
 
-`gbl_root_canoe` is an EDK2-based workspace for patching the EFI applications within Qualcomm ABL (Android Bootloader) images. It leverages a GBL (Generic Bootloader Loader) vulnerability to inject custom EFIs, primarily intended for achieving a **Fake Locked Bootloader** state on Snapdragon 8 Gen 5 / 8 Elite (Gen 5) devices to bypass bootloader unlock detection. The patched EFI is typically flashed into the `efisp` partition.
+`gbl_root_canoe` is an EDK2-based workspace for patching the EFI applications within Qualcomm ABL (Android Bootloader) images. It leverages a GBL (Generic Bootloader Loader) vulnerability to patch the embedded EFI, primarily intended for achieving a **Fake Locked Bootloader** state on Snapdragon 8 Gen 5 / 8 Elite (Gen 5) devices to bypass bootloader unlock detection. The patched EFI is typically flashed into the `efisp` partition.
 
 ---
 
@@ -22,22 +22,18 @@ You must be on a **Linux** host to build the project:
 **Note:** You **do not** need to provide an `abl.img` to build the distributable toolkits or Magisk module. Set the `DIST_NAME` environment variable to name your release ZIP (e.g., `DIST_NAME=my_toolkit make dist_loader`).
 
 - **`make dist_loader`**
-  Builds the EDK2 native payload (`loader.elf`) and compiles the patching utilities (`extractfv`, `patch_abl`, `elf_inject`, etc.) for Linux. Packages them into a `.zip` in `release/`.
+  Compiles the patching utilities (`extractfv`, `patch_abl`) for Linux and packages them into a `.zip` in `release/`.
 
 - **`make dist_loader_windows`**
   Similar to `dist_loader`, but cross-compiles the patching utilities into Windows `.exe` programs using MinGW-w64.
 
 - **`make build_module`**
-  Cross-compiles the patcher tools for Android using your NDK and builds the EDK2 payload. Packages them into a Magisk Module zip in `release/`.
+  Cross-compiles the patcher tools for Android using your NDK. Packages them into a Magisk Module zip in `release/`.
 
 - **`make dist`**
-  Builds the pre-patched EFI for a specific device model.
+  Builds the patched EFI for a specific device model.
 
-- **`make build_superfbonly`**
-  Builds only `superfastboot`, changing the original embedded EFI startup location to return control directly to ABL (for debugging purposes, no fake-lock effect).
 
-- **`make build_generic`**
-  Embeds the patch tools, aiming to be universal across multiple device models. However, high-version compatibility is poor, and it is gradually being deprecated.
 
 ---
 
@@ -65,35 +61,14 @@ If you downloaded the `dist_loader` or `dist_loader_windows` zip files:
 1. Extract the toolkit zip on your PC.
 2. Place your device's stock `abl.img` inside the `images/` (or `images\`) directory of the toolkit.
 3. **Linux:** Run `bash build.sh` (or `make build`). **Windows:** Run `build.bat`.
-4. The scripts will extract, patch, and inject the custom payload, outputting the modified file `ABL_with_superfastboot.efi`. (Check the output logs; if it says "Warning: Failed to patch ABL GBL", the device is not vulnerable and ABL needs to be downgraded).
+4. The scripts will extract, patch, and patch the ABL, outputting the modified file `ABL.efi`. (Check the output logs; if it says "Warning: Failed to patch ABL GBL", the device is not vulnerable and ABL needs to be downgraded).
 
 ### 3. Using Pre-patched EFIs
-Download a specific release version that contains the phone model or codename in its filename. Use `ABL_with_superfastboot.efi` or `ABL.efi` from the package to boot or flash via `fastboot` commands (e.g., `fastboot flash efisp ABL_with_superfastboot.efi`). It is highly recommended to use the version with `superfastboot` to preserve fallback fastboot-flashing capabilities.
+Download a specific release version that contains the phone model or codename in its filename. Use `ABL.efi` from the package to boot or flash via `fastboot` commands (e.g., `fastboot flash efisp ABL.efi`).
 
-### 4. Using Generic EFIs (Deprecated)
-Download `generic_superfastboot.efi` and perform the relevant flashing steps. Due to compatibility issues and instability across different OEM device features, it might perform poorly on certain models or OS versions, and is **no longer recommended**.
-
-### 5. OTA Upgrade
+### 4. OTA Upgrade
 Before rebooting for an OTA update, use the module to flash and retain the old ABL version. If you are doing a major version upgrade, it is recommended to check "Update efisp", otherwise the device might get stuck on the initial boot screen.
 
-### 6. Superfastboot Usage Instructions
-When OEM Unlocking is enabled and the white warning text appears on boot, you must press **Volume Down** to enter Superfastboot mode.
-Common commands include:
-- **Temp-boot an EFI file (without flashing)**: `fastboot boot xxx.efi`
-- **Lock and Unlock (BL related)**:
-  - Lock BL, triggers a data wipe: `fastboot flashing lock`
-  - Unlock BL, no data wipe: `fastboot flashing unlock` or `fastboot flashing unlock_critical`
-  - *Note: If the TEE status is inconsistent, the device will refuse to provide the data key, rendering data inaccessible.*
-- **Flashing and Erasing**:
-  - `fastboot flash <partition> <file.img>`
-  - `fastboot erase <partition>`
-- **Rebooting**:
-  - `fastboot reboot bootloader` (Next normal boot enters Official Fastboot)
-  - `fastboot reboot recovery`
-  - `fastboot reboot`
-
-### 7. Explanation of Different Variants
+### 5. Explanation of Different Variants
 1. `ABL.efi`: The patched ABL.
 2. `ABL_original`: For developers to analyze in IDA, used for error reporting. **DO NOT flash**.
-3. `ABL_with_superfastboot.efi`: The patched ABL integrated with superfastboot.
-4. `loader.elf`: The superfastboot binary file. Unlinked to EFI format, it is meant to link with toolbox. Cannot be flashed directly.
