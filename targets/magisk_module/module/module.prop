@@ -1,6 +1,6 @@
 id=fake_bl_efisp
 name=假回锁
-version=6.1
-versionCode=13
-author=caomi
+version=6.3.101
+versionCode=101
+author=Rexinrou
 description=自动刷新bl相关分区到非活动槽位
